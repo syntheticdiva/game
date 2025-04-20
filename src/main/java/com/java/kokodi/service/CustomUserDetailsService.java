@@ -25,13 +25,13 @@ public class CustomUserDetailsService implements UserDetailsService {
     /**
      * Загружает пользователя по email для аутентификации.
      *
+     * @param email email пользователя, используемый в качестве логина
      * @return объект {@link UserDetails} с данными пользователя
      * @throws UsernameNotFoundException если пользователь с указанным email не найден
      */
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return userRepository.findByLogin(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with login: " + username));
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
     }
 }
-
