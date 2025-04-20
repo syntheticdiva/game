@@ -1,0 +1,120 @@
+package com.java.kokodi.service;
+
+import com.java.kokodi.dto.TurnDto;
+import com.java.kokodi.entity.Card;
+import com.java.kokodi.entity.GameSession;
+import com.java.kokodi.entity.Turn;
+import com.java.kokodi.entity.User;
+import com.java.kokodi.enums.CardType;
+import com.java.kokodi.enums.GameStatus;
+import com.java.kokodi.exception.GameException;
+import com.java.kokodi.mapper.CardMapper;
+import com.java.kokodi.mapper.TurnMapper;
+import com.java.kokodi.repository.CardRepository;
+import com.java.kokodi.repository.TurnRepository;
+import jakarta.persistence.Table;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.io.Serial;
+import java.util.Collections;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class CardService {
+    private final CardRepository cardRepository;
+    private final TurnRepository turnRepository;
+    private final UserService userService;
+    private final CardMapper cardMapper;
+    private final TurnMapper turnMapper;
+
+    @Transactional
+    public void initializeDeck(GameSession gameSession){
+        List<Card> deck = List.of(
+                createCard("Bonus Points", CardType.POINTS, 5, gameSession),
+                createCard("Mega Points", CardType.POINTS, 10, gameSession),
+                createCard("Block", CardType.ACTION, 1, gameSession),
+                createCard("Steal", CardType.ACTION, 3, gameSession),
+                createCard("Double Down", CardType.ACTION, 2, gameSession),
+                createCard("Small Points", CardType.POINTS, 2, gameSession),
+                createCard("Medium Points", CardType.POINTS, 7, gameSession)
+        );
+        Collections.shuffle(deck);
+        gameSession.setDeck(deck);
+        cardRepository.saveAll(deck);
+    }
+
+    private Card createCard(String name, CardType type, int value, GameSession gameSession){
+        Card card = new Card();
+        card.setName(name);
+        card.setType(type);
+        card.setValue(value);
+        card.setGameSession(gameSession);
+        return card;
+    }
+    @Transactional
+    public Card drawCard(GameSession gameSession){
+        return gameSession.getDeck().stream()
+                .filter(card -> !card.isPlayed())
+                .findFirst()
+                .orElseThrow(()->new GameException("No cards left in the deck"));
+    }
+
+    @Transactional
+    public TurnDto applyCardEffect(GameSession gameSession, Card card, User user){
+        card.setPlayed(true);
+        card.setPlayedBy(user);
+        cardRepository.save(card);
+
+        Turn turn = new Turn();
+        turn.setGameSession(gameSession);
+        turn.setPlayer(user);
+        turn.setCard(card);
+
+        String action;
+        int scoreBefore = userService.getUserScore(user, gameSession);
+        int scoreAfter = scoreBefore;
+
+        if (card.getType()==CardType.POINTS){
+            scoreAfter = userService.addScore(user, gameSession, card.getValue());
+            action = String.format("Player %s gained %d points", user.getName(), card.getValue());
+        } else {
+            switch (card.getName()){
+                case "Block":
+                    gameSession.setBlockNextPlayer(true);
+                    action = String.format("Player %s blocked next player", user.getName());
+                    break;
+                case "Steal":
+                    User opponent = chooseRandomOpponent(gameSession, user);
+                    int stolenPoints = Math.min(card.getValue(), userService.getUserScore(opponent, gameSession));
+                    userService.addScore(opponent, gameSession, -stolenPoints);
+                    scoreAfter = userService.addScore(user, gameSession, stolenPoints);
+                    action = String.format("Player %s stole %d pionts from %s",
+                            user.getName(), stolenPoints, opponent.getName());
+                    break;
+                case "DoubleDown":
+                    int currentScore = userService.getUserScore(user, gameSession);
+                    int pointsToAdd = Math.min(currentScore, 30 - currentScore);
+                    scoreAfter = userService.addScore(user, gameSession, pointsToAdd);
+                    action = String.format("Player %s double their score to %d", user.getName(), scoreAfter);
+                    break;
+                default:
+                    action = "Unknown card effect";
+            }
+        }
+        turn.setAction(action);
+        turnRepository.save(turn);
+
+        return turnMapper.toDtoWithScores(turn, scoreBefore, scoreAfter);
+    }
+
+    private User chooseRandomOpponent(GameSession gameSession, User currentUser){
+        return  gameSession.getPlayers().stream()
+                .filter(player->!player.equals(currentUser))
+                .findFirst()
+                .orElseThrow(()->new GameException("No opponents found"));
+    }
+
+}
