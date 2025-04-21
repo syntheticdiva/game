@@ -17,4 +17,5 @@ public class GameSessionDto {
     private boolean canStart;
     private boolean canJoin;
     private boolean finished;
+
 }

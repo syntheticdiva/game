@@ -15,23 +15,28 @@ import com.java.kokodi.repository.TurnRepository;
 import jakarta.persistence.Table;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CardService {
     private final CardRepository cardRepository;
     private final TurnRepository turnRepository;
     private final UserService userService;
     private final CardMapper cardMapper;
     private final TurnMapper turnMapper;
-
     @Transactional
-    public void initializeDeck(GameSession gameSession){
+    public void initializeDeck(GameSession gameSession) {
+        // Очищаем существующую колоду перед созданием новой
+        gameSession.getDeck().clear();
+
         List<Card> deck = List.of(
                 createCard("Bonus Points", CardType.POINTS, 5, gameSession),
                 createCard("Mega Points", CardType.POINTS, 10, gameSession),
@@ -41,19 +46,49 @@ public class CardService {
                 createCard("Small Points", CardType.POINTS, 2, gameSession),
                 createCard("Medium Points", CardType.POINTS, 7, gameSession)
         );
-        Collections.shuffle(deck);
-        gameSession.setDeck(deck);
-        cardRepository.saveAll(deck);
+
+        // Добавляем новые карты через коллекцию
+        gameSession.getDeck().addAll(deck);
+        Collections.shuffle(gameSession.getDeck());
+
+        // Не требуется явное сохранение - каскадирование сработает автоматически
     }
 
-    private Card createCard(String name, CardType type, int value, GameSession gameSession){
+    private Card createCard(String name, CardType type, int value, GameSession gameSession) {
         Card card = new Card();
         card.setName(name);
         card.setType(type);
         card.setValue(value);
-        card.setGameSession(gameSession);
+        card.setGameSession(gameSession); // Критически важная связь
+        card.setPlayed(false);
         return card;
     }
+
+//    @Transactional
+//    public void initializeDeck(GameSession gameSession) {
+//        List<Card> deck = List.of(
+//                createCard("Small Points", CardType.POINTS, 2, gameSession),
+//                createCard("Medium Points", CardType.POINTS, 5, gameSession),
+//                createCard("Big Points", CardType.POINTS, 8, gameSession),
+//                createCard("Block", CardType.ACTION, 0, gameSession), // Блокирует следующего игрока
+//                createCard("Steal", CardType.ACTION, 0, gameSession), // Кража 3 очков
+//                createCard("Swap", CardType.ACTION, 0, gameSession), // Обмен очками
+//                createCard("Double", CardType.ACTION, 0, gameSession), // Удвоение очков
+//                createCard("Bomb", CardType.ACTION, 0, gameSession) // Сброс очков всех игроков до 0
+//        );
+//
+//        Collections.shuffle(deck);
+//        gameSession.setDeck(deck);
+//        cardRepository.saveAll(deck);
+//    }
+//    private Card createCard(String name, CardType type, int value, GameSession gameSession){
+//        Card card = new Card();
+//        card.setName(name);
+//        card.setType(type);
+//        card.setValue(value);
+//        card.setGameSession(gameSession);
+//        return card;
+//    }
     @Transactional
     public Card drawCard(GameSession gameSession){
         return gameSession.getDeck().stream()

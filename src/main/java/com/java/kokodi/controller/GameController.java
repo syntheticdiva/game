@@ -2,6 +2,7 @@ package com.java.kokodi.controller;
 
 
 import com.java.kokodi.dto.GameSessionDto;
+import com.java.kokodi.dto.GameStatusDto;
 import com.java.kokodi.dto.TurnDto;
 import com.java.kokodi.entity.User;
 import com.java.kokodi.service.GameService;
@@ -54,13 +55,17 @@ public class GameController {
         return ResponseEntity.ok(gameService.playTurn(gameId, userId));
     }
 
-    @GetMapping("/{gameId}")
-    public ResponseEntity<GameSessionDto> getGameStatus(@PathVariable UUID gameId) {
-        return ResponseEntity.ok(gameService.getGameStatus(gameId));
-    }
+//    @GetMapping("/{gameId}")
+//    public ResponseEntity<GameSessionDto> getGameStatus(@PathVariable UUID gameId) {
+//        return ResponseEntity.ok(gameService.getGameStatus(gameId));
+//    }
 
     @GetMapping
     public ResponseEntity<List<GameSessionDto>> getActiveGames() {
         return ResponseEntity.ok(gameService.getAllActiveGames());
+    }
+    @GetMapping("/{gameId}/status")
+    public ResponseEntity<GameStatusDto> getGameStatus(@PathVariable UUID gameId) {
+        return ResponseEntity.ok(gameService.getDetailedStatus(gameId));
     }
 }

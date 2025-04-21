@@ -1,6 +1,8 @@
 package com.java.kokodi.service;
 
 import com.java.kokodi.dto.GameSessionDto;
+import com.java.kokodi.dto.GameStatusDto;
+import com.java.kokodi.dto.PlayerScoreDto;
 import com.java.kokodi.dto.TurnDto;
 import com.java.kokodi.entity.Card;
 import com.java.kokodi.entity.GameSession;
@@ -12,6 +14,7 @@ import com.java.kokodi.mapper.TurnMapper;
 import com.java.kokodi.repository.CardRepository;
 import com.java.kokodi.repository.GameSessionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +23,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GameService {
     private final GameSessionRepository gameSessionRepository;
     private final CardService cardService;
@@ -39,51 +43,77 @@ public class GameService {
         return gameSessionMapper.toDto(savedSession);
     }
     @Transactional
-    public GameSessionDto joinGame(UUID gameId, UUID userId){
+    public GameSessionDto joinGame(UUID gameId, UUID userId) {
         GameSession gameSession = getGameSessionEntity(gameId);
         User user = userService.getEntityById(userId);
-        if (gameSession.getPlayers().contains(user)){
+
+        if (gameSession.getPlayers().contains(user)) {
             throw new GameException("You are already in this game");
         }
-        if (gameSession.getPlayers().size()>=4){
+        if (gameSession.getPlayers().size() >= 4) {
             throw new GameException("Game is full");
         }
-        gameSession.addPlayer(user);
-        GameSession updateSession = gameSessionRepository.save(gameSession);
-        return gameSessionMapper.toDto(updateSession);
-    }
 
+        gameSession.addPlayer(user); // Статус остаётся прежним
+        return gameSessionMapper.toDto(gameSessionRepository.save(gameSession));
+    }
     @Transactional
-    public GameSessionDto startGame(UUID gameId, UUID userId){
+    public GameSessionDto startGame(UUID gameId, UUID userId) {
         GameSession gameSession = getGameSessionEntity(gameId);
         User user = userService.getEntityById(userId);
-        if (!gameSession.getPlayers().get(0).equals(user)){
-            throw new GameException("Only creator can start the game");
+
+        // Проверка создателя через ID
+        if (gameSession.getPlayers().isEmpty() ||
+                !gameSession.getPlayers().get(0).getId().equals(user.getId())) {
+            throw new GameException("Только создатель может начать игру");
         }
-        if (gameSession.getPlayers().size()<2){
-            throw new GameException("Not enough players to start");
+
+        if (gameSession.getStatus() != GameStatus.WAIT_FOR_PLAYERS) {
+            throw new GameException("Игра уже начата");
         }
-        gameSession.setStatus(GameStatus.IN_PROGRESS);
+
+        if (gameSession.getPlayers().size() < 2) {
+            throw new GameException("Для старта нужно минимум 2 игрока");
+        }
+
         cardService.initializeDeck(gameSession);
-        GameSession startedSession = gameSessionRepository.save(gameSession);
-        return gameSessionMapper.toDto(startedSession);
+        gameSession.setStatus(GameStatus.IN_PROGRESS);
+        gameSession.setCurrentPlayerIndex(0);
+
+        GameSession savedSession = gameSessionRepository.saveAndFlush(gameSession);
+        return gameSessionMapper.toDto(savedSession);
     }
     @Transactional
-    public TurnDto playTurn(UUID gameId, UUID userId){
+    public TurnDto playTurn(UUID gameId, UUID userId) {
         GameSession gameSession = getGameSessionEntity(gameId);
         User user = userService.getEntityById(userId);
 
-        validateTurn(gameSession, user);
-
-        Card card = cardService.drawCard(gameSession);
-        TurnDto turnDto = cardService.applyCardEffect(gameSession, card, user);
-        if (checkWinCondition(gameSession)){
-            gameSession.setStatus(GameStatus.FINISHED);
-            gameSessionRepository.save(gameSession);
-        } else {
-            gameSession.moveToNextPlayer();
-            gameSessionRepository.save(gameSession);
+        // Проверка что игра не завершена
+        if (gameSession.getStatus() == GameStatus.FINISHED) {
+            throw new GameException("Game is finished");
         }
+
+        // Проверка что сейчас ход данного игрока
+        if (!gameSession.getCurrentPlayer().equals(user)) {
+            throw new GameException("It's not your turn");
+        }
+
+        // Получаем карту из колоды
+        Card card = cardService.drawCard(gameSession);
+
+        // Применяем эффект карты
+        TurnDto turnDto = cardService.applyCardEffect(gameSession, card, user);
+
+        // Проверяем условие победы
+        if (checkWinCondition(gameSession)) {
+            gameSession.setStatus(GameStatus.FINISHED);
+            gameSession.setWinner(user);
+        } else {
+            // Переход хода к следующему игроку
+            gameSession.moveToNextPlayer();
+        }
+
+        gameSessionRepository.save(gameSession);
         return turnDto;
     }
     @Transactional(readOnly = true)
@@ -111,6 +141,26 @@ public class GameService {
     private GameSession getGameSessionEntity(UUID gameId) {
         return gameSessionRepository.findById(gameId)
                 .orElseThrow(() -> new GameException("Game session not found"));
+    }
+    public GameStatusDto getDetailedStatus(UUID gameId) {
+        GameSession gameSession = getGameSessionEntity(gameId);
+
+        List<PlayerScoreDto> players = gameSession.getPlayers().stream()
+                .map(player -> new PlayerScoreDto(
+                        player.getId(),
+                        player.getName(),
+                        userService.getUserScore(player, gameSession))
+                ).toList();
+
+        return GameStatusDto.builder()
+                .gameId(gameSession.getId())
+                .status(gameSession.getStatus())
+                .currentPlayer(gameSession.getCurrentPlayer().getId())
+                .players(players)
+                .cardsLeft((int) gameSession.getDeck().stream()
+                        .filter(card -> !card.isPlayed()).count())
+                .winner(gameSession.getWinner() != null ? gameSession.getWinner().getId() : null)
+                .build();
     }
 
     }

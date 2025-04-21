@@ -28,7 +28,11 @@ public class GameSession {
     inverseJoinColumns = @JoinColumn(name = "user_id"))
     private List<User> players = new ArrayList<>();
 
-    @OneToMany(mappedBy = "gameSession", cascade = CascadeType.ALL)
+    @OneToMany(
+            mappedBy = "gameSession",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true // Добавляем orphan removal
+    )
     private List<Card> deck = new ArrayList<>();
     @OneToMany(mappedBy = "gameSession", cascade = CascadeType.ALL)
     private List<Turn> turns = new ArrayList<>();
@@ -37,21 +41,24 @@ public class GameSession {
     @Column(columnDefinition = "jsonb")
     private Map<UUID, Integer> playerScores = new HashMap<>();
 
+    @ManyToOne
+    @JoinColumn(name = "winner_id")
+    private User winner;
+
     private Integer currentPlayerIndex = 0;
     private Integer nextPlayIndex = 0;
     private boolean blockNextPlayer = false;
 
 
 
-    public void addPlayer(User user){
-        if (players.size()>=4){
+    public void addPlayer(User user) {
+        if (players.size() >= 4) {
             throw new IllegalStateException("Game session is full");
         }
         players.add(user);
-        if (players.size() >= 2 && status == GameStatus.WAIT_FOR_PLAYERS) {
-            status = GameStatus.IN_PROGRESS;
+        // Убрана проверка на количество игроков и изменение статуса
         }
-        }
+
         public void moveToNextPlayer(){
         if (blockNextPlayer){
             nextPlayIndex = (currentPlayerIndex + 2 ) % players.size();
