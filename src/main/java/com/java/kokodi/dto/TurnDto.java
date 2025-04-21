@@ -13,18 +13,8 @@ public class TurnDto {
     private CardType cardType;
     private String action;
     private String playerName;
-    private int scoreBefore; // Должны быть в сущности Turn
+    private int scoreBefore;
     private int scoreAfter;
     private UUID nextPlayerId;
     private String nextPlayerName;
 }
-//@Data
-//@Builder
-//public class TurnDto {
-//    private String cardName;
-//    private CardType cardType;
-//    private String action;
-//    private String playerName;
-//    private int scoreBefore;
-//    private int scoreAfter;
-//}

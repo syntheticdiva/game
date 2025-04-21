@@ -28,10 +28,4 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
-        userService.deleteUser(id);
-        return ResponseEntity.noContent().build();
-    }
 }

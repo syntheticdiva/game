@@ -6,12 +6,10 @@ import com.java.kokodi.dto.GameStatusDto;
 import com.java.kokodi.dto.TurnDto;
 import com.java.kokodi.entity.User;
 import com.java.kokodi.service.GameService;
-import com.java.kokodi.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,11 +21,10 @@ import java.util.UUID;
 public class GameController {
 
     private final GameService gameService;
-    private final UserService userService;
 
-    @PostMapping
+    @PostMapping("/{gameId}/create new game")
     public ResponseEntity<GameSessionDto> createGame(
-            @AuthenticationPrincipal User user) { // Прямое использование User
+            @AuthenticationPrincipal User user) {
         UUID userId = user.getId();
         return ResponseEntity.ok(gameService.createGame(userId));
     }
@@ -54,11 +51,6 @@ public class GameController {
         UUID userId = ((User) userDetails).getId();
         return ResponseEntity.ok(gameService.playTurn(gameId, userId));
     }
-
-//    @GetMapping("/{gameId}")
-//    public ResponseEntity<GameSessionDto> getGameStatus(@PathVariable UUID gameId) {
-//        return ResponseEntity.ok(gameService.getGameStatus(gameId));
-//    }
 
     @GetMapping
     public ResponseEntity<List<GameSessionDto>> getActiveGames() {

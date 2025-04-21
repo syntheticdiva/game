@@ -13,10 +13,7 @@ import java.util.UUID;
 public interface TurnRepository extends JpaRepository<Turn, UUID> {
     List<Turn> findByGameSessionIdAndPlayerIdOrderByTimestampDesc(UUID gameId, UUID userId);
 
-
     @Query("SELECT t FROM Turn t WHERE t.gameSession.id = :sessionId ORDER BY t.timestamp DESC")
     List<Turn> findTurnsForSession(@Param("sessionId") UUID sessionId);
-
-
 
 }

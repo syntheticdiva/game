@@ -21,6 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Сервис для управления игровыми сессиями.
+ * Обеспечивает создание игр, подключение игроков, обработку ходов и контроль игрового процесса.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -29,8 +33,14 @@ public class GameService {
     private final CardService cardService;
     private final UserService userService;
     private final GameSessionMapper gameSessionMapper;
-    private final TurnMapper turnMapper;
 
+    /**
+     * Создает новую игровую сессию.
+     *
+     * @param creatorId идентификатор пользователя-создателя
+     * @return DTO созданной игровой сессии
+     * @throws GameException если пользователь не найден
+     */
     @Transactional
     public GameSessionDto createGame(UUID creatorId) {
         User creator = userService.getEntityById(creatorId);
@@ -42,6 +52,15 @@ public class GameService {
         GameSession savedSession = gameSessionRepository.save(gameSession);
         return gameSessionMapper.toDto(savedSession);
     }
+
+    /**
+     * Подключает игрока к существующей сессии.
+     *
+     * @param gameId идентификатор игровой сессии
+     * @param userId идентификатор подключаемого игрока
+     * @return DTO обновленной игровой сессии
+     * @throws GameException если игрок уже в игре, игра заполнена или сессия/игрок не найдены
+     */
     @Transactional
     public GameSessionDto joinGame(UUID gameId, UUID userId) {
         GameSession gameSession = getGameSessionEntity(gameId);
@@ -54,15 +73,26 @@ public class GameService {
             throw new GameException("Game is full");
         }
 
-        gameSession.addPlayer(user); // Статус остаётся прежним
+        gameSession.addPlayer(user);
         return gameSessionMapper.toDto(gameSessionRepository.save(gameSession));
     }
+
+    /**
+     * Начинает игровую сессию.
+     *
+     * @param gameId идентификатор игровой сессии
+     * @param userId идентификатор инициатора старта
+     * @return DTO начатой игровой сессии
+     * @throws GameException если:
+     *                       - инициатор не является создателем
+     *                       - игра уже начата
+     *                       - недостаточно игроков (меньше 2)
+     */
     @Transactional
     public GameSessionDto startGame(UUID gameId, UUID userId) {
         GameSession gameSession = getGameSessionEntity(gameId);
         User user = userService.getEntityById(userId);
 
-        // Проверка создателя через ID
         if (gameSession.getPlayers().isEmpty() ||
                 !gameSession.getPlayers().get(0).getId().equals(user.getId())) {
             throw new GameException("Только создатель может начать игру");
@@ -83,65 +113,62 @@ public class GameService {
         GameSession savedSession = gameSessionRepository.saveAndFlush(gameSession);
         return gameSessionMapper.toDto(savedSession);
     }
+
+    /**
+     * Обрабатывает ход игрока.
+     *
+     * @param gameId идентификатор игры
+     * @param userId идентификатор игрока
+     * @return DTO выполненного хода
+     * @throws GameException если:
+     *                       - игра завершена
+     *                       - не ход игрока
+     *                       - игрок/сессия не найдены
+     */
     @Transactional
     public TurnDto playTurn(UUID gameId, UUID userId) {
         GameSession gameSession = getGameSessionEntity(gameId);
         User user = userService.getEntityById(userId);
 
-        // Проверка что игра не завершена
         if (gameSession.getStatus() == GameStatus.FINISHED) {
             throw new GameException("Game is finished");
         }
 
-        // Проверка что сейчас ход данного игрока
         if (!gameSession.getCurrentPlayer().equals(user)) {
             throw new GameException("It's not your turn");
         }
 
-        // Получаем карту из колоды
         Card card = cardService.drawCard(gameSession);
-
-        // Применяем эффект карты
         TurnDto turnDto = cardService.applyCardEffect(gameSession, card, user);
 
-        // Проверяем условие победы
         if (checkWinCondition(gameSession)) {
             gameSession.setStatus(GameStatus.FINISHED);
             gameSession.setWinner(user);
         } else {
-            // Переход хода к следующему игроку
             gameSession.moveToNextPlayer();
         }
 
         gameSessionRepository.save(gameSession);
         return turnDto;
     }
-    @Transactional(readOnly = true)
-    public GameSessionDto getGameStatus(UUID gameId){
-        return gameSessionMapper.toDto(getGameSessionEntity(gameId));
-    }
+    /**
+     * Получает список всех активных игр
+     *
+     * @return список DTO активных игровых сессий
+     */
     @Transactional(readOnly = true)
     public List<GameSessionDto> getAllActiveGames() {
-        return gameSessionMapper.toDtoList( // Используем правильный метод
+        return gameSessionMapper.toDtoList(
                 gameSessionRepository.findByStatusNot(GameStatus.FINISHED)
         );
     }
-    private void validateTurn(GameSession gameSession, User user){
-        if (gameSession.getStatus()==GameStatus.FINISHED){
-            throw new GameException("Game is already finished");
-        }
-        if (!gameSession.getCurrentPlayer().equals(user)){
-            throw new GameException("It's not your turn");
-        }
-    }
-    private boolean checkWinCondition(GameSession gameSession){
-        return  gameSession.getPlayers().stream()
-                .anyMatch(player->userService.getUserScore(player, gameSession)>=30);
-    }
-    private GameSession getGameSessionEntity(UUID gameId) {
-        return gameSessionRepository.findById(gameId)
-                .orElseThrow(() -> new GameException("Game session not found"));
-    }
+
+    /**
+     * Получает детализированный статус игры.
+     *
+     * @param gameId идентификатор игры
+     * @return DTO с подробной информацией о статусе игры
+     */
     public GameStatusDto getDetailedStatus(UUID gameId) {
         GameSession gameSession = getGameSessionEntity(gameId);
 
@@ -163,6 +190,26 @@ public class GameService {
                 .build();
     }
 
+    /**
+     * Проверяет условие победы в игре.
+     *
+     * @param gameSession игровая сессия
+     * @return true если хотя бы один игрок набрал 30 или более очков
+     */
+    private boolean checkWinCondition(GameSession gameSession) {
+        return gameSession.getPlayers().stream()
+                .anyMatch(player -> userService.getUserScore(player, gameSession) >= 30);
     }
 
-
+    /**
+     * Получает сущность игровой сессии по идентификатору.
+     *
+     * @param gameId идентификатор игры
+     * @return сущность игровой сессии
+     * @throws GameException если сессия не найдена
+     */
+    private GameSession getGameSessionEntity(UUID gameId) {
+        return gameSessionRepository.findById(gameId)
+                .orElseThrow(() -> new GameException("Game session not found"));
+    }
+}

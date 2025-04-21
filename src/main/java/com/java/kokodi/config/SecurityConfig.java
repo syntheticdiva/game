@@ -102,7 +102,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:8080")); // Замените на ваш фронтенд
+        config.setAllowedOrigins(List.of("http://localhost:8080"));
         config.addAllowedMethod("*");
         config.addAllowedHeader("*");
 

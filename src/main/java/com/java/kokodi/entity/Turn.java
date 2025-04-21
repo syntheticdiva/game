@@ -1,11 +1,8 @@
 package com.java.kokodi.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
-
 import java.time.LocalDateTime;
-import java.util.Locale;
 import java.util.UUID;
 
 @Data
@@ -28,6 +25,5 @@ public class Turn {
     private LocalDateTime timestamp;
     private int scoreBefore;
     private int scoreAfter;
-
 
 }
