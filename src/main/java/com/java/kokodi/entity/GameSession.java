@@ -61,15 +61,15 @@ public class GameSession {
         playerScores.put(user.getId(), 0); // Инициализация счета
     }
 
-    public void moveToNextPlayer(){
-        if (blockNextPlayer) {
-            // Пропускаем одного игрока
-            nextPlayIndex = (currentPlayerIndex + 2) % players.size();
-            blockNextPlayer = false; // Сбрасываем флаг после применения
+        public void moveToNextPlayer(){
+        if (blockNextPlayer){
+            nextPlayIndex = (currentPlayerIndex + 2 ) % players.size();
+            blockNextPlayer = false;
         } else {
             nextPlayIndex = (currentPlayerIndex + 1) % players.size();
         }
         currentPlayerIndex = nextPlayIndex;
+
     }
     public User getCurrentPlayer() {
         if (players.isEmpty() || currentPlayerIndex >= players.size()) {
@@ -79,5 +79,16 @@ public class GameSession {
     }
     public Integer getNextPlayIndex() {
         return this.nextPlayIndex;
+    }
+    public User getNextPlayer() {
+        int nextIndex = calculateNextIndex();
+        return players.get(nextIndex);
+    }
+
+    private int calculateNextIndex() {
+        if (blockNextPlayer) {
+            return (currentPlayerIndex + 2) % players.size();
+        }
+        return (currentPlayerIndex + 1) % players.size();
     }
 }

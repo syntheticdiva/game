@@ -13,6 +13,8 @@ public interface TurnMapper {
     @Mapping(target = "cardName", source = "card.name")
     @Mapping(target = "cardType", source = "card.type")
     @Mapping(target = "playerName", source = "player.name")
+    @Mapping(target = "nextPlayerId", source = "gameSession.nextPlayer.id")
+    @Mapping(target = "nextPlayerName", source = "gameSession.nextPlayer.name")
     TurnDto toDto(Turn turn);
 
     @Mapping(target = "scoreBefore", source = "scoreBefore")

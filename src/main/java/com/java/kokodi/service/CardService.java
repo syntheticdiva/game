@@ -151,11 +151,10 @@ public Card drawCard(GameSession gameSession) {
         int scoreAfter = scoreBefore;
         String action;
 
+        // Обработка эффекта карты
         if (card.getType() == CardType.POINTS) {
-            // Обработка Points Card
             scoreAfter = userService.addScore(user, gameSession, card.getValue());
-            action = String.format("Игрок %s получил %d очков",
-                    user.getName(), card.getValue());
+            action = String.format("Игрок %s получил %d очков", user.getName(), card.getValue());
         } else {
             switch (card.getName()) {
                 case "Block":
@@ -194,12 +193,21 @@ public Card drawCard(GameSession gameSession) {
             }
         }
 
+        // Определяем следующего игрока до изменения индексов
+        User nextPlayer = gameSession.getNextPlayer();
+
+        // Сохраняем Turn
         turn.setAction(action);
         turn.setScoreBefore(scoreBefore);
         turn.setScoreAfter(scoreAfter);
         turnRepository.save(turn);
 
-        return turnMapper.toDto(turn);
+        // Создаем DTO и добавляем информацию о следующем игроке
+        TurnDto turnDto = turnMapper.toDto(turn);
+        turnDto.setNextPlayerId(nextPlayer.getId());
+        turnDto.setNextPlayerName(nextPlayer.getName());
+
+        return turnDto;
     }
 
     private User chooseRandomOpponent(GameSession gameSession, User currentUser) {
