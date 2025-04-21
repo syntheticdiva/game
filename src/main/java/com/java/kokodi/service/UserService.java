@@ -76,9 +76,8 @@ public class UserService {
      * @return пользователь с ролью ROLE_ADMIN
      */
     public User createAdmin(String login, String name, String email, String password) {
-        return registerUser(login, name, email, password, Set.of(Role.ROLE_ADMIN));
+        return registerUser(login, name, email, password, Set.of(Role.ADMIN)); // Исправлено
     }
-
     /**
      * Создает обычного пользователя.
      *
@@ -87,7 +86,7 @@ public class UserService {
      * @return пользователь с ролью ROLE_USER
      */
     public User createUser(String login, String name, String email, String password) {
-        return registerUser(login, name, email, password, Set.of(Role.ROLE_USER));
+        return registerUser(login, name, email, password, Set.of(Role.USER)); // Исправлено
     }
 
     @Transactional(readOnly = true)

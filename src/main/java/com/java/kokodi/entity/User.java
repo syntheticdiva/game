@@ -40,18 +40,29 @@ public class User implements UserDetails {
     @Column(name = "roles")
     @Enumerated(EnumType.STRING)
     private Set<Role> roles = new HashSet<>();
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roles.stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                 .toList();
     }
-
     @Override
     public String getUsername() {
-        return login;
+        return email; // Для совместимости с аутентификацией по email
     }
+
+
+//    @Override
+//    public Collection<? extends GrantedAuthority> getAuthorities() {
+//        return roles.stream()
+//                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+//                .toList();
+//    }
+
+//    @Override
+//    public String getUsername() {
+//        return login;
+//    }
 
     @Override
     public boolean isAccountNonExpired() {
