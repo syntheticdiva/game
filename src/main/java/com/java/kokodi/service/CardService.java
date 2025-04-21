@@ -22,6 +22,8 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,24 +36,26 @@ public class CardService {
     private final TurnMapper turnMapper;
     @Transactional
     public void initializeDeck(GameSession gameSession) {
-        // Очищаем существующую колоду перед созданием новой
+        // Удаляем существующие карты из БД
+        cardRepository.deleteAllByGameSession(gameSession);
+
+        List<Card> deck = new ArrayList<>();
+
+        // Добавляем карты
+        deck.add(createCard("Small Points", CardType.POINTS, 2, gameSession));
+        deck.add(createCard("Block", CardType.ACTION, 1, gameSession));
+        deck.add(createCard("Steal", CardType.ACTION, 3, gameSession));
+        deck.add(createCard("Double Down", CardType.ACTION, 2, gameSession));
+        deck.add(createCard("Medium Points", CardType.POINTS, 7, gameSession));
+        deck.add(createCard("Mega Points", CardType.POINTS, 10, gameSession));
+
+        // Сохраняем карты в БД
+        List<Card> savedCards = cardRepository.saveAll(deck);
+
+        // Обновляем колоду в игровой сессии
         gameSession.getDeck().clear();
-
-        List<Card> deck = List.of(
-                createCard("Bonus Points", CardType.POINTS, 5, gameSession),
-                createCard("Mega Points", CardType.POINTS, 10, gameSession),
-                createCard("Block", CardType.ACTION, 1, gameSession),
-                createCard("Steal", CardType.ACTION, 3, gameSession),
-                createCard("Double Down", CardType.ACTION, 2, gameSession),
-                createCard("Small Points", CardType.POINTS, 2, gameSession),
-                createCard("Medium Points", CardType.POINTS, 7, gameSession)
-        );
-
-        // Добавляем новые карты через коллекцию
-        gameSession.getDeck().addAll(deck);
+        gameSession.getDeck().addAll(savedCards);
         Collections.shuffle(gameSession.getDeck());
-
-        // Не требуется явное сохранение - каскадирование сработает автоматически
     }
 
     private Card createCard(String name, CardType type, int value, GameSession gameSession) {
@@ -59,11 +63,10 @@ public class CardService {
         card.setName(name);
         card.setType(type);
         card.setValue(value);
-        card.setGameSession(gameSession); // Критически важная связь
+        card.setGameSession(gameSession);
         card.setPlayed(false);
         return card;
     }
-
 //    @Transactional
 //    public void initializeDeck(GameSession gameSession) {
 //        List<Card> deck = List.of(
@@ -89,16 +92,40 @@ public class CardService {
 //        card.setGameSession(gameSession);
 //        return card;
 //    }
-    @Transactional
-    public Card drawCard(GameSession gameSession){
-        return gameSession.getDeck().stream()
+@Transactional
+public Card drawCard(GameSession gameSession) {
+    List<Card> availableCards = gameSession.getDeck().stream()
+            .filter(card -> !card.isPlayed())
+            .collect(Collectors.toList());
+
+    if (availableCards.isEmpty()) {
+        reshuffleDiscardedCards(gameSession);
+        availableCards = gameSession.getDeck().stream()
                 .filter(card -> !card.isPlayed())
-                .findFirst()
-                .orElseThrow(()->new GameException("No cards left in the deck"));
+                .collect(Collectors.toList());
+
+        if (availableCards.isEmpty()) {
+            throw new GameException("No cards available after reshuffle");
+        }
     }
 
+    Card card = availableCards.get(0);
+    card.setPlayed(true);
+    cardRepository.save(card);
+
+    return card;
+}
+    private void reshuffleDiscardedCards(GameSession gameSession) {
+        // Сбрасываем статус всех карт
+        gameSession.getDeck().forEach(card -> card.setPlayed(false));
+        Collections.shuffle(gameSession.getDeck());
+
+        // Сохраняем изменения в БД
+        cardRepository.saveAll(gameSession.getDeck());
+        log.info("Deck reshuffled for game {}", gameSession.getId());
+    }
     @Transactional
-    public TurnDto applyCardEffect(GameSession gameSession, Card card, User user){
+    public TurnDto applyCardEffect(GameSession gameSession, Card card, User user) {
         card.setPlayed(true);
         card.setPlayedBy(user);
         cardRepository.save(card);
@@ -108,48 +135,65 @@ public class CardService {
         turn.setPlayer(user);
         turn.setCard(card);
 
-        String action;
         int scoreBefore = userService.getUserScore(user, gameSession);
         int scoreAfter = scoreBefore;
+        String action;
 
-        if (card.getType()==CardType.POINTS){
+        if (card.getType() == CardType.POINTS) {
             scoreAfter = userService.addScore(user, gameSession, card.getValue());
             action = String.format("Player %s gained %d points", user.getName(), card.getValue());
         } else {
-            switch (card.getName()){
+            switch (card.getName()) {
                 case "Block":
                     gameSession.setBlockNextPlayer(true);
                     action = String.format("Player %s blocked next player", user.getName());
                     break;
+
                 case "Steal":
                     User opponent = chooseRandomOpponent(gameSession, user);
-                    int stolenPoints = Math.min(card.getValue(), userService.getUserScore(opponent, gameSession));
+
+                    // Получаем текущие очки через сервис
+                    int opponentScore = userService.getUserScore(opponent, gameSession);
+                    int stolenPoints = Math.min(3, opponentScore); // Используем явное значение 3
+
+                    // Обновляем очки
                     userService.addScore(opponent, gameSession, -stolenPoints);
                     scoreAfter = userService.addScore(user, gameSession, stolenPoints);
-                    action = String.format("Player %s stole %d pionts from %s",
+
+                    action = String.format("Игрок %s украл %d очков у %s",
                             user.getName(), stolenPoints, opponent.getName());
                     break;
-                case "DoubleDown":
+                case "Double Down":
                     int currentScore = userService.getUserScore(user, gameSession);
                     int pointsToAdd = Math.min(currentScore, 30 - currentScore);
                     scoreAfter = userService.addScore(user, gameSession, pointsToAdd);
-                    action = String.format("Player %s double their score to %d", user.getName(), scoreAfter);
+                    action = String.format("Player %s doubled their score to %d",
+                            user.getName(), scoreAfter);
                     break;
+
                 default:
-                    action = "Unknown card effect";
+                    throw new GameException("Unknown card: " + card.getName());
             }
         }
+
         turn.setAction(action);
+        turn.setScoreBefore(scoreBefore);
+        turn.setScoreAfter(scoreAfter);
         turnRepository.save(turn);
 
-        return turnMapper.toDtoWithScores(turn, scoreBefore, scoreAfter);
+        return turnMapper.toDto(turn);
     }
 
-    private User chooseRandomOpponent(GameSession gameSession, User currentUser){
-        return  gameSession.getPlayers().stream()
-                .filter(player->!player.equals(currentUser))
-                .findFirst()
-                .orElseThrow(()->new GameException("No opponents found"));
-    }
+    private User chooseRandomOpponent(GameSession gameSession, User currentUser) {
+        List<User> opponents = gameSession.getPlayers().stream()
+                .filter(p -> !p.getId().equals(currentUser.getId()))
+                .collect(Collectors.toList());
 
+        if (opponents.isEmpty()) {
+            throw new GameException("Не найдено оппонентов для кражи");
+        }
+
+        return opponents.get(new Random().nextInt(opponents.size()));
+    }
 }
+

@@ -103,16 +103,19 @@ public class UserService {
     public boolean existsByLogin(String login){
         return userRepository.existsByLogin(login);
     }
-    public int getUserScore(User user, GameSession gameSession) {
-        return gameSession.getPlayerScores().getOrDefault(user.getId(), 0);
-    }
-
     @Transactional
-    public int addScore(User user, GameSession gameSession, int points) {
-        Map<UUID, Integer> scores = gameSession.getPlayerScores();
-        int newScore = Math.max(0, scores.getOrDefault(user.getId(), 0) + points);
+    public int getUserScore(User user, GameSession session) {
+        return session.getPlayerScores()
+                .getOrDefault(user.getId(), 0);
+    }
+    @Transactional
+    public int addScore(User user, GameSession session, int delta) {
+        Map<UUID, Integer> scores = new HashMap<>(session.getPlayerScores());
+        int current = scores.getOrDefault(user.getId(), 0);
+        int newScore = Math.max(0, current + delta);
         scores.put(user.getId(), newScore);
-        gameSessionRepository.save(gameSession);
+        session.setPlayerScores(scores);
+        gameSessionRepository.save(session);
         return newScore;
     }
     public Optional<User> findByLogin(String login) {

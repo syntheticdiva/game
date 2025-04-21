@@ -53,11 +53,11 @@ public class GameSession {
 
     public void addPlayer(User user) {
         if (players.size() >= 4) {
-            throw new IllegalStateException("Game session is full");
+            throw new IllegalStateException("Игровая сессия заполнена");
         }
         players.add(user);
-        // Убрана проверка на количество игроков и изменение статуса
-        }
+        playerScores.put(user.getId(), 0); // Инициализация счета
+    }
 
         public void moveToNextPlayer(){
         if (blockNextPlayer){
