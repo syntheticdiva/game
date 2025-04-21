@@ -19,10 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.Serial;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,7 +38,7 @@ public class CardService {
 
         List<Card> deck = new ArrayList<>();
 
-        // Добавляем карты
+        // Создаем базовые карты
         deck.add(createCard("Small Points", CardType.POINTS, 2, gameSession));
         deck.add(createCard("Block", CardType.ACTION, 1, gameSession));
         deck.add(createCard("Steal", CardType.ACTION, 3, gameSession));
@@ -49,15 +46,21 @@ public class CardService {
         deck.add(createCard("Medium Points", CardType.POINTS, 7, gameSession));
         deck.add(createCard("Mega Points", CardType.POINTS, 10, gameSession));
 
+        // Перемешиваем колоду
+        Collections.shuffle(deck);
+
+        // Устанавливаем порядковые индексы
+        for(int i = 0; i < deck.size(); i++) {
+            deck.get(i).setOrderIndex(i);
+        }
+
         // Сохраняем карты в БД
         List<Card> savedCards = cardRepository.saveAll(deck);
 
         // Обновляем колоду в игровой сессии
         gameSession.getDeck().clear();
         gameSession.getDeck().addAll(savedCards);
-        Collections.shuffle(gameSession.getDeck());
     }
-
     private Card createCard(String name, CardType type, int value, GameSession gameSession) {
         Card card = new Card();
         card.setName(name);
@@ -65,6 +68,7 @@ public class CardService {
         card.setValue(value);
         card.setGameSession(gameSession);
         card.setPlayed(false);
+        card.setOrderIndex(0); // Временное значение, будет перезаписано после shuffle
         return card;
     }
 //    @Transactional
@@ -94,14 +98,17 @@ public class CardService {
 //    }
 @Transactional
 public Card drawCard(GameSession gameSession) {
+    // Получаем все несыгранные карты, отсортированные по orderIndex
     List<Card> availableCards = gameSession.getDeck().stream()
             .filter(card -> !card.isPlayed())
+            .sorted(Comparator.comparingInt(Card::getOrderIndex))
             .collect(Collectors.toList());
 
     if (availableCards.isEmpty()) {
         reshuffleDiscardedCards(gameSession);
         availableCards = gameSession.getDeck().stream()
                 .filter(card -> !card.isPlayed())
+                .sorted(Comparator.comparingInt(Card::getOrderIndex))
                 .collect(Collectors.toList());
 
         if (availableCards.isEmpty()) {
@@ -109,6 +116,7 @@ public Card drawCard(GameSession gameSession) {
         }
     }
 
+    // Берём карту с наименьшим orderIndex (верхняя карта)
     Card card = availableCards.get(0);
     card.setPlayed(true);
     cardRepository.save(card);
@@ -116,12 +124,16 @@ public Card drawCard(GameSession gameSession) {
     return card;
 }
     private void reshuffleDiscardedCards(GameSession gameSession) {
-        // Сбрасываем статус всех карт
-        gameSession.getDeck().forEach(card -> card.setPlayed(false));
-        Collections.shuffle(gameSession.getDeck());
+        List<Card> deck = gameSession.getDeck();
+        Collections.shuffle(deck);
 
-        // Сохраняем изменения в БД
-        cardRepository.saveAll(gameSession.getDeck());
+        // Обновляем индексы порядка
+        for (int i = 0; i < deck.size(); i++) {
+            deck.get(i).setOrderIndex(i);
+            deck.get(i).setPlayed(false);
+        }
+
+        cardRepository.saveAll(deck);
         log.info("Deck reshuffled for game {}", gameSession.getId());
     }
     @Transactional

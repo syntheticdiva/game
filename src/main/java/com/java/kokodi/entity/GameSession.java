@@ -31,9 +31,11 @@ public class GameSession {
     @OneToMany(
             mappedBy = "gameSession",
             cascade = CascadeType.ALL,
-            orphanRemoval = true // Добавляем orphan removal
+            orphanRemoval = true
     )
+    @OrderColumn(name = "order_index")
     private List<Card> deck = new ArrayList<>();
+
     @OneToMany(mappedBy = "gameSession", cascade = CascadeType.ALL)
     private List<Turn> turns = new ArrayList<>();
 

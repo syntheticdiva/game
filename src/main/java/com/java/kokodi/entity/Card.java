@@ -21,6 +21,8 @@ public class Card {
     private CardType type;
     @Column(nullable = false)
     private Integer value;
+    @Column(name = "order_index")
+    private Integer orderIndex;
     @ManyToOne
     @JoinColumn(name = "game_session_id")
     private GameSession gameSession;
