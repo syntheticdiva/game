@@ -48,21 +48,8 @@ public class User implements UserDetails {
     }
     @Override
     public String getUsername() {
-        return email; // Для совместимости с аутентификацией по email
+        return email;
     }
-
-
-//    @Override
-//    public Collection<? extends GrantedAuthority> getAuthorities() {
-//        return roles.stream()
-//                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-//                .toList();
-//    }
-
-//    @Override
-//    public String getUsername() {
-//        return login;
-//    }
 
     @Override
     public boolean isAccountNonExpired() {
