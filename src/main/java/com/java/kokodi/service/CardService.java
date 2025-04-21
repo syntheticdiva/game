@@ -39,10 +39,10 @@ public class CardService {
         List<Card> deck = new ArrayList<>();
 
         // Создаем базовые карты
-        deck.add(createCard("Small Points", CardType.POINTS, 2, gameSession));
         deck.add(createCard("Block", CardType.ACTION, 1, gameSession));
         deck.add(createCard("Steal", CardType.ACTION, 3, gameSession));
         deck.add(createCard("Double Down", CardType.ACTION, 2, gameSession));
+        deck.add(createCard("Small Points", CardType.POINTS, 2, gameSession));
         deck.add(createCard("Medium Points", CardType.POINTS, 7, gameSession));
         deck.add(createCard("Mega Points", CardType.POINTS, 10, gameSession));
 
@@ -152,39 +152,45 @@ public Card drawCard(GameSession gameSession) {
         String action;
 
         if (card.getType() == CardType.POINTS) {
+            // Обработка Points Card
             scoreAfter = userService.addScore(user, gameSession, card.getValue());
-            action = String.format("Player %s gained %d points", user.getName(), card.getValue());
+            action = String.format("Игрок %s получил %d очков",
+                    user.getName(), card.getValue());
         } else {
             switch (card.getName()) {
                 case "Block":
+                    // Block Card: value=1, следующий игрок пропускает ход
                     gameSession.setBlockNextPlayer(true);
-                    action = String.format("Player %s blocked next player", user.getName());
+                    action = String.format("Игрок %s блокирует следующего игрока",
+                            user.getName());
                     break;
 
                 case "Steal":
+                    // Steal Card: value=N, кража N очков
                     User opponent = chooseRandomOpponent(gameSession, user);
-
-                    // Получаем текущие очки через сервис
                     int opponentScore = userService.getUserScore(opponent, gameSession);
-                    int stolenPoints = Math.min(3, opponentScore); // Используем явное значение 3
+                    int stealValue = card.getValue();
+                    int stolenPoints = Math.min(stealValue, opponentScore);
 
-                    // Обновляем очки
                     userService.addScore(opponent, gameSession, -stolenPoints);
                     scoreAfter = userService.addScore(user, gameSession, stolenPoints);
-
                     action = String.format("Игрок %s украл %d очков у %s",
                             user.getName(), stolenPoints, opponent.getName());
                     break;
+
                 case "Double Down":
+                    // DoubleDown Card: value=2, удвоение очков (макс 30)
                     int currentScore = userService.getUserScore(user, gameSession);
-                    int pointsToAdd = Math.min(currentScore, 30 - currentScore);
+                    int maxPossible = 30 - currentScore;
+                    int pointsToAdd = Math.min(currentScore, maxPossible);
+
                     scoreAfter = userService.addScore(user, gameSession, pointsToAdd);
-                    action = String.format("Player %s doubled their score to %d",
-                            user.getName(), scoreAfter);
+                    action = String.format("Игрок %s удвоил очки: %d → %d",
+                            user.getName(), scoreBefore, scoreAfter);
                     break;
 
                 default:
-                    throw new GameException("Unknown card: " + card.getName());
+                    throw new GameException("Неизвестная карта: " + card.getName());
             }
         }
 

@@ -61,15 +61,15 @@ public class GameSession {
         playerScores.put(user.getId(), 0); // Инициализация счета
     }
 
-        public void moveToNextPlayer(){
-        if (blockNextPlayer){
-            nextPlayIndex = (currentPlayerIndex + 2 ) % players.size();
-            blockNextPlayer = false;
+    public void moveToNextPlayer(){
+        if (blockNextPlayer) {
+            // Пропускаем одного игрока
+            nextPlayIndex = (currentPlayerIndex + 2) % players.size();
+            blockNextPlayer = false; // Сбрасываем флаг после применения
         } else {
             nextPlayIndex = (currentPlayerIndex + 1) % players.size();
         }
         currentPlayerIndex = nextPlayIndex;
-
     }
     public User getCurrentPlayer() {
         if (players.isEmpty() || currentPlayerIndex >= players.size()) {
