@@ -33,9 +33,6 @@ public class GameSession {
 
     /**
      * Колода карт в текущей игровой сессии.
-     * Связь один-ко-многим с сущностью Card.
-     * При удалении сессии все карты также удаляются (orphanRemoval).
-     * Сохраняется порядок карт в колоде.
      */
     @OneToMany(
             mappedBy = "gameSession",
@@ -47,7 +44,6 @@ public class GameSession {
 
     /**
      * Список ходов, сделанных в данной игровой сессии.
-     * Связь один-ко-многим с сущностью Turn.
      */
     @OneToMany(mappedBy = "gameSession", cascade = CascadeType.ALL)
     private List<Turn> turns = new ArrayList<>();
